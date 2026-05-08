@@ -1,0 +1,46 @@
+name: Daily Auto Commit
+
+on:
+  schedule:
+    # Run every day at 2:00 AM UTC
+    - cron: '0 2 * * *'
+  # Allow manual trigger from Actions tab
+  workflow_dispatch:
+
+jobs:
+  auto-commit:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+      - name: Create/Update timestamp file
+        run: |
+          echo "Last auto-commit: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" > .github/last-commit.txt
+          
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Commit and push
+        if: steps.changes.outputs.has_changes == 'true' || always()
+        run: |
+          git add -A
+          git commit -m "chore: daily auto-commit [skip ci]" --allow-empty || true
+          git push origin HEAD:${{ github.ref }}
